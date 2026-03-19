@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Quiz Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus+Jakarta+Sans', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .page-fade {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .option-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .option-btn:hover:not(:disabled) {
+            transform: scale(1.01);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+        }
+
+        .heart-pop {
+            animation: heartPop 0.3s ease-out;
+        }
+
+        @keyframes heartPop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+
+    <div id="app" class="flex flex-col md:flex-row min-h-screen">
+        <div class="w-full h-screen flex flex-col items-center justify-center gap-4">
+            <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div class="font-bold text-slate-400 tracking-tight">Starting Quiz Engine...</div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Data & Expanded Question Bank ---
+        const DEFAULT_QUESTIONS = {
+            "World": [
+                {q: "Which planet is known as the Red Planet?", a: ["Mars", "Venus", "Jupiter", "Saturn"], correct: 0},
+                {q: "What is the capital of France?", a: ["Berlin", "Madrid", "Paris", "Rome"], correct: 2},
+                {q: "Which is the largest ocean on Earth?", a: ["Atlantic", "Indian", "Arctic", "Pacific"], correct: 3},
+                {q: "Which country is Land of the Rising Sun?", a: ["China", "Japan", "South Korea", "Thailand"], correct: 1},
+                {q: "Smallest country in the world?", a: ["Monaco", "Malta", "Vatican City", "San Marino"], correct: 2},
+                {q: "Longest river in the world?", a: ["Amazon", "Nile", "Yangtze", "Mississippi"], correct: 1},
+                {q: "Mount Everest is in which range?", a: ["Andes", "Rockies", "Alps", "Himalayas"], correct: 3},
+                {q: "Continent known as 'Dark Continent'?", a: ["Asia", "South America", "Africa", "Australia"], correct: 2},
+                {q: "Currency of Japan?", a: ["Yuan", "Won", "Yen", "Ringgit"], correct: 2},
+                {q: "Where is the Leaning Tower of Pisa?", a: ["France", "Spain", "Germany", "Italy"], correct: 3},
+                {q: "Which country has the most natural lakes?", a: ["USA", "China", "Canada", "Australia"], correct: 2},
+                {q: "What is the capital of Australia?", a: ["Sydney", "Melbourne", "Canberra", "Perth"], correct: 2},
+                {q: "Which desert is the largest in the world?", a: ["Sahara", "Gobi", "Antarctic", "Kalahari"], correct: 2},
+                {q: "In which country is the Taj Mahal located?", a: ["India", "Pakistan", "Bangladesh", "Nepal"], correct: 0},
+                {q: "Which is the most populous country?", a: ["India", "China", "USA", "Indonesia"], correct: 0},
+                {q: "Which city is known as the Big Apple?", a: ["Chicago", "New York", "Los Angeles", "London"], correct: 1},
+                {q: "What is the smallest continent?", a: ["Europe", "Antarctica", "Australia", "South America"], correct: 2},
+                {q: "Which language has the most native speakers?", a: ["English", "Spanish", "Mandarin", "Hindi"], correct: 2},
+                {q: "What is the capital of Brazil?", a: ["Rio de Janeiro", "São Paulo", "Brasília", "Salvador"], correct: 2},
+                {q: "Which country is the largest by area?", a: ["Canada", "China", "USA", "Russia"], correct: 3}
+            ],
+            "Science": [
+                {q: "Chemical symbol for Gold?", a: ["Gd", "Ag", "Au", "Fe"], correct: 2},
+                {q: "Hardest natural substance on Earth?", a: ["Gold", "Iron", "Diamond", "Coal"], correct: 2},
+                {q: "Gas plants absorb from atmosphere?", a: ["Oxygen", "Nitrogen", "Carbon Dioxide", "Hydrogen"], correct: 2},
+                {q: "Boiling point of water at sea level?", a: ["90°C", "100°C", "110°C", "120°C"], correct: 1},
+                {q: "Planet closest to the Sun?", a: ["Venus", "Mars", "Mercury", "Earth"], correct: 2},
+                {q: "Powerhouse of the cell?", a: ["Nucleus", "Ribosome", "Mitochondria", "Cytoplasm"], correct: 2},
+                {q: "Bones in adult human body?", a: ["206", "210", "195", "201"], correct: 0},
+                {q: "Speed of light approx?", a: ["150k km/s", "300k km/s", "450k km/s", "600k km/s"], correct: 1},
+                {q: "Instrument for atmospheric pressure?", a: ["Thermometer", "Barometer", "Hydrometer", "Anemometer"], correct: 1},
+                {q: "Who proposed Relativity theory?", a: ["Newton", "Galileo", "Einstein", "Tesla"], correct: 2},
+                {q: "What is the center of an atom called?", a: ["Proton", "Nucleus", "Electron", "Neutron"], correct: 1},
+                {q: "Which planet has the most moons?", a: ["Jupiter", "Saturn", "Neptune", "Uranus"], correct: 1},
+                {q: "What is the chemical formula for salt?", a: ["H2O", "NaCl", "CO2", "O2"], correct: 1},
+                {q: "Human organ that pumps blood?", a: ["Lungs", "Brain", "Heart", "Liver"], correct: 2},
+                {q: "Main gas in Earth's atmosphere?", a: ["Oxygen", "Nitrogen", "Carbon Dioxide", "Argon"], correct: 1},
+                {q: "Which vitamin comes from sunlight?", a: ["Vitamin A", "Vitamin B", "Vitamin C", "Vitamin D"], correct: 3},
+                {q: "Study of mushrooms is called?", a: ["Botany", "Mycology", "Zoology", "Phycology"], correct: 1},
+                {q: "Lightest chemical element?", a: ["Helium", "Oxygen", "Hydrogen", "Lithium"], correct: 2},
+                {q: "Which acid is found in lemons?", a: ["Sulfuric", "Nitric", "Citric", "Acetic"], correct: 2},
+                {q: "Largest planet in our solar system?", a: ["Earth", "Saturn", "Jupiter", "Neptune"], correct: 2}
+            ],
+            "History": [
+                {q: "When did World War II end?", a: ["1943", "1944", "1945", "1946"], correct: 2},
+                {q: "First President of the USA?", a: ["Jefferson", "Lincoln", "Washington", "Adams"], correct: 2},
+                {q: "Empire ruled by Julius Caesar?", a: ["Ottoman", "Roman", "British", "Mongol"], correct: 1},
+                {q: "Renaissance started in which country?", a: ["France", "Germany", "Italy", "Spain"], correct: 2},
+                {q: "First woman to fly solo across Atlantic?", a: ["Amelia Earhart", "Bessie Coleman", "Valentina", "Sally Ride"], correct: 0},
+                {q: "Ship that sank in 1912?", a: ["Olympic", "Britannic", "Titanic", "Lusitania"], correct: 2},
+                {q: "First Emperor of China?", a: ["Qin Shi Huang", "Han Wudi", "Kublai Khan", "Sun Yat-sen"], correct: 0},
+                {q: "Magna Carta signed in which year?", a: ["1215", "1066", "1492", "1776"], correct: 0},
+                {q: "Discovered America in 1492?", a: ["Vasco da Gama", "Marco Polo", "Columbus", "James Cook"], correct: 2},
+                {q: "Civilization that built Pyramids?", a: ["Maya", "Greek", "Egyptian", "Roman"], correct: 2},
+                {q: "Who was the Maid of Orléans?", a: ["Marie Antoinette", "Joan of Arc", "Catherine the Great", "Queen Victoria"], correct: 1},
+                {q: "Ancient city destroyed by Vesuvius?", a: ["Rome", "Athens", "Pompeii", "Carthage"], correct: 2},
+                {q: "The Great Wall of China was built for?", a: ["Trade", "Irrigation", "Defense", "Tourism"], correct: 2},
+                {q: "Leader of the Mongol Empire?", a: ["Kublai Khan", "Genghis Khan", "Attila", "Alexander"], correct: 1},
+                {q: "Signed the Declaration of Independence?", a: ["George III", "Benjamin Franklin", "Thomas Jefferson", "Both B & C"], correct: 3},
+                {q: "Apartheid ended in which country?", a: ["Nigeria", "Kenya", "South Africa", "Zimbabwe"], correct: 2},
+                {q: "Who was the 'Iron Lady'?", a: ["Margaret Thatcher", "Angela Merkel", "Indira Gandhi", "Golda Meir"], correct: 0},
+                {q: "First man in space?", a: ["Neil Armstrong", "Buzz Aldrin", "Yuri Gagarin", "John Glenn"], correct: 2},
+                {q: "Capital of the Ottoman Empire?", a: ["Ankara", "Istanbul", "Bursa", "Edirne"], correct: 1},
+                {q: "When was the Berlin Wall torn down?", a: ["1987", "1988", "1989", "1990"], correct: 2}
+            ],
+            "Gadgets": [
+                {q: "Company that created iPhone?", a: ["Samsung", "Google", "Apple", "Microsoft"], correct: 2},
+                {q: "Developer of Linux kernel?", a: ["Steve Jobs", "Linus Torvalds", "Bill Gates", "Elon Musk"], correct: 1},
+                {q: "What does HTTP stand for?", a: ["HyperText Transfer", "High Tech", "Hyperlink", "None"], correct: 0},
+                {q: "Platform originally called 'BackRub'?", a: ["Facebook", "Twitter", "Google", "Instagram"], correct: 2},
+                {q: "First commercial SMS sent year?", a: ["1990", "1992", "1995", "1998"], correct: 1},
+                {q: "Co-founded Microsoft with Bill Gates?", a: ["Paul Allen", "Steve Wozniak", "Larry Page", "Jeff Bezos"], correct: 0},
+                {q: "What does 'Wi-Fi' stand for?", a: ["Wireless Fidelity", "Wide Field", "Wired Fiber", "Nothing"], correct: 3},
+                {q: "Company developed Android OS?", a: ["Apple", "Google", "Blackberry", "Nokia"], correct: 1},
+                {q: "What does 'RAM' stand for?", a: ["Read Access", "Random Access", "Rapid Action", "Real-time"], correct: 1},
+                {q: "First domain name registered?", a: ["apple.com", "google.com", "symbolics.com", "ibm.com"], correct: 2},
+                {q: "What is the brain of a computer?", a: ["RAM", "Hard Drive", "CPU", "Motherboard"], correct: 2},
+                {q: "Which company owns YouTube?", a: ["Microsoft", "Facebook", "Google", "Amazon"], correct: 2},
+                {q: "Year the first iPhone released?", a: ["2005", "2006", "2007", "2008"], correct: 2},
+                {q: "Founder of Facebook?", a: ["Jack Dorsey", "Mark Zuckerberg", "Tim Cook", "Satya Nadella"], correct: 1},
+                {q: "What does USB stand for?", a: ["Universal Serial Bus", "Ultra Speed Boot", "User System Base", "None"], correct: 0},
+                {q: "Common OS for Apple computers?", a: ["Windows", "Linux", "macOS", "ChromeOS"], correct: 2},
+                {q: "Invented the World Wide Web?", a: ["Bill Gates", "Steve Jobs", "Tim Berners-Lee", "Mark Zuckerberg"], correct: 2},
+                {q: "First ever video on YouTube?", a: ["Cat video", "Me at the zoo", "Music video", "Tutorial"], correct: 1},
+                {q: "Popular programming language for AI?", a: ["C++", "Java", "Python", "PHP"], correct: 2},
+                {q: "Company that made the PlayStation?", a: ["Nintendo", "Sega", "Sony", "Microsoft"], correct: 2}
+            ]
+        };
+
+        // --- State Management ---
+        window.state = {
+            page: 'dashboard',
+            category: null,
+            currentQuestions: [], 
+            currentIndex: 0,
+            score: 0,
+            bestScore: parseInt(localStorage.getItem('quizBestScore') || '0'),
+            gameHistory: JSON.parse(localStorage.getItem('quizHistory') || '[]'),
+            classResults: [],
+            lives: 3,
+            timeLeft: 15,
+            timerId: null,
+            isBusy: false,
+            selectedChoice: null,
+            studentName: localStorage.getItem('studentName') || '',
+            user: null,
+            db: null,
+            isOffline: false,
+            appId: typeof __app_id !== 'undefined' ? __app_id : 'classroom-quiz-v1'
+        };
+
+        const getQuestions = () => {
+            let custom = JSON.parse(localStorage.getItem('customQuizzes') || '{}');
+            return { ...DEFAULT_QUESTIONS, ...custom };
+        };
+
+        const shuffleArray = (array) => {
+            const newArr = [...array];
+            for (let i = newArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+            }
+            return newArr;
+        };
+
+        // --- Firebase Handling ---
+        const initFirebase = async () => {
+            try {
+                const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+                
+                if (!configStr) {
+                    window.state.isOffline = true;
+                    window.state.user = { uid: 'local-student' };
+                    window.render();
+                    return;
+                }
+
+                const config = JSON.parse(configStr);
+                const app = initializeApp(config);
+                const auth = getAuth(app);
+                window.state.db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    window.state.user = user;
+                    if (user && !window.state.isOffline) listenToClassResults();
+                    window.render();
+                });
+            } catch (err) {
+                window.state.isOffline = true;
+                window.state.user = { uid: 'local-student' };
+                window.render();
+            }
+        };
+
+        const listenToClassResults = () => {
+            if (!window.state.db) return;
+            const resultsRef = collection(window.state.db, 'artifacts', window.state.appId, 'public', 'data', 'classResults');
+            onSnapshot(resultsRef, (snapshot) => {
+                window.state.classResults = snapshot.docs.map(doc => doc.data())
+                    .sort((a, b) => b.timestamp - a.timestamp);
+                window.render();
+            }, (err) => console.log("Live Sync paused."));
+        };
+
+        // --- UI Rendering ---
+        window.render = () => {
+            const container = document.getElementById('app');
+            if (!container) return;
+            if (!window.state.user) return; 
+
+            if (!window.state.studentName) {
+                container.innerHTML = window.renderNameEntry();
+                return;
+            }
+
+            let content = '';
+            const sidebar = window.renderSidebar();
+            
+            if (window.state.page === 'dashboard') content = sidebar + window.renderDashboard();
+            else if (window.state.page === 'quiz') content = sidebar + window.renderQuiz();
+            else if (window.state.page === 'end') content = sidebar + window.renderEnd();
+            else if (window.state.page === 'classResults') content = sidebar + window.renderClassResults();
+            
+            container.innerHTML = content;
+        };
+
+        window.renderSidebar = () => {
+            const allTopics = getQuestions();
+            return `
+                <aside class="w-full md:w-80 bg-white border-r border-slate-200 p-6 flex flex-col gap-8">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                        <div class="overflow-hidden">
+                            <h2 class="font-extrabold text-slate-900 text-lg truncate w-full">${window.state.studentName}</h2>
+                            <button onclick="window.changeName()" class="text-[10px] text-blue-500 font-bold uppercase hover:underline">Change User</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">My Performance</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                <div class="text-[9px] text-slate-400 font-bold uppercase">Best Score</div>
+                                <div class="text-xl font-black text-blue-600">${window.state.bestScore}</div>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                                <div class="text-[9px] text-slate-400 font-bold uppercase">Tests Done</div>
+                                <div class="text-xl font-black text-slate-800">${window.state.gameHistory.length}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 flex-1 overflow-y-auto pr-2">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Select Topic</p>
+                        <div class="grid gap-2">
+                            ${Object.keys(allTopics).map(cat => `
+                                <button onclick="window.startGame('${cat}')" 
+                                    class="group flex items-center gap-3 p-3 rounded-xl hover:bg-blue-50 transition-all text-left ${window.state.category === cat ? 'bg-blue-50 ring-1 ring-blue-100' : ''}">
+                                    <div class="text-xl">${window.getIcon(cat)}</div>
+                                    <div class="flex-1">
+                                        <div class="text-sm font-bold text-slate-700">${cat}</div>
+                                        <div class="text-[10px] text-slate-400">${allTopics[cat].length} Questions</div>
+                                    </div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <button onclick="window.setPage('classResults')" class="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl">
+                        Class Rankings 📊
+                    </button>
+                </aside>
+            `;
+        };
+
+        window.renderDashboard = () => {
+            return `
+                <main class="flex-1 p-6 md:p-10 page-fade overflow-y-auto">
+                    <header class="mb-10">
+                        <h1 class="text-4xl font-black text-slate-900 tracking-tight">Quiz Dashboard</h1>
+                        <p class="text-slate-500 font-medium text-lg tracking-tight">Welcome, ${window.state.studentName}! Ready for a test?</p>
+                    </header>
+
+                    <div class="grid lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 space-y-6">
+                            <div class="flex items-center justify-between px-2">
+                                <h3 class="text-lg font-bold text-slate-800">Recent Test Results</h3>
+                                ${window.state.gameHistory.length > 0 ? `<button onclick="window.clearHistory()" class="text-[10px] font-bold text-red-500 uppercase hover:underline">Clear History</button>` : ''}
+                            </div>
+                            <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                                ${window.state.gameHistory.length > 0 ? 
+                                    window.state.gameHistory.map(game => `
+                                        <div class="flex items-center justify-between p-6 border-b border-slate-50 last:border-0">
+                                            <div class="flex items-center gap-4">
+                                                <div class="text-2xl">${window.getIcon(game.category)}</div>
+                                                <div>
+                                                    <div class="font-bold text-slate-800">${game.category}</div>
+                                                    <div class="text-[10px] text-slate-400 uppercase font-bold">${game.date}</div>
+                                                </div>
+                                            </div>
+                                            <div class="text-right font-black text-blue-600 text-xl">${game.score}</div>
+                                        </div>
+                                    `).join('') : `<div class="p-20 text-center text-slate-400 font-medium">No test history found.</div>`}
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <h3 class="text-lg font-bold text-slate-800 px-2">Class Leaders</h3>
+                            <div class="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm space-y-4">
+                                ${window.state.classResults.slice(0, 5).map((res, i) => `
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <span class="font-black text-slate-200 text-xl">#${i+1}</span>
+                                            <span class="font-bold text-sm text-slate-700 truncate w-24">${res.studentName}</span>
+                                        </div>
+                                        <span class="text-blue-600 font-black text-sm">${res.score}</span>
+                                    </div>
+                                `).join('') || '<p class="text-center text-xs text-slate-400 py-10 font-bold uppercase tracking-widest opacity-50">Local Mode Active</p>'}
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            `;
+        };
+
+        window.renderQuiz = () => {
+            const q = window.state.currentQuestions[window.state.currentIndex];
+            if (!q) return `<div class="p-10 text-center font-bold">Error loading question.</div>`;
+
+            return `
+                <main class="flex-1 p-6 md:p-10 flex flex-col items-center justify-center page-fade">
+                    <div class="w-full max-w-2xl space-y-8">
+                        <div class="flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+                            <button onclick="window.setPage('dashboard')" class="text-xs font-bold text-slate-400 hover:text-red-500 px-4 py-2 transition-all">EXIT TEST</button>
+                            <div class="flex items-center gap-4">
+                                <div class="flex gap-1">${Array(3).fill(0).map((_, i) => `<span class="text-xl ${i < window.state.lives ? 'heart-pop' : 'grayscale opacity-20'}">❤️</span>`).join('')}</div>
+                                <div class="text-sm font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full">⏱ <span id="timer-display">${window.state.timeLeft}</span>s</div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-[3rem] p-8 md:p-16 shadow-2xl border border-slate-100">
+                            <div class="flex justify-between mb-4">
+                                <p class="text-xs font-bold text-blue-500 uppercase tracking-widest">${window.state.category} Exam</p>
+                                <p class="text-xs font-bold text-slate-400">Q ${window.state.currentIndex + 1}/${window.state.currentQuestions.length}</p>
+                            </div>
+                            <h2 class="text-3xl font-black text-slate-800 text-center leading-tight mb-12">${q.q}</h2>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                ${q.a.map((ans, i) => `<button onclick="window.handleChoice(${i})" ${window.state.isBusy ? 'disabled' : ''} class="option-btn group w-full p-5 rounded-2xl border-2 text-left font-bold transition-all ${window.getOptionStyle(i)}"><span>${ans}</span></button>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            `;
+        };
+
+        window.renderClassResults = () => {
+            return `
+                <main class="flex-1 p-6 md:p-10 page-fade overflow-y-auto">
+                    <div class="max-w-4xl mx-auto space-y-8">
+                        <header class="flex justify-between items-center">
+                            <h1 class="text-4xl font-black text-slate-900 tracking-tight">Class Rankings 🏆</h1>
+                            <button onclick="window.setPage('dashboard')" class="px-6 py-2 bg-slate-100 rounded-full font-bold text-sm hover:bg-slate-200">Back</button>
+                        </header>
+                        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 border-b border-slate-100">
+                                    <tr>
+                                        <th class="p-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Student Name</th>
+                                        <th class="p-6 text-xs font-bold text-slate-400 uppercase tracking-widest">Topic</th>
+                                        <th class="p-6 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${window.state.classResults.map(res => `
+                                        <tr class="border-b border-slate-50">
+                                            <td class="p-6 font-bold text-slate-800">${res.studentName}</td>
+                                            <td class="p-6 text-xs font-bold text-blue-600 uppercase tracking-tighter">${res.category}</td>
+                                            <td class="p-6 font-black text-blue-600 text-center">${res.score}</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="3" class="p-20 text-center text-slate-400 font-bold">Cloud rankings available in online mode.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+            `;
+        };
+
+        window.renderEnd = () => {
+            return `
+                <main class="flex-1 p-6 md:p-10 flex flex-col items-center justify-center page-fade text-center">
+                    <div class="w-full max-w-md space-y-8">
+                        <div class="text-8xl mb-4">🏆</div>
+                        <h2 class="text-5xl font-black text-slate-900 tracking-tight">Finished!</h2>
+                        <div class="bg-blue-600 rounded-[3rem] p-10 text-white shadow-2xl">
+                            <p class="text-blue-200 text-xs font-bold uppercase tracking-widest mb-1">Final Score</p>
+                            <div class="text-7xl font-black">${window.state.score}</div>
+                        </div>
+                        <p class="text-slate-500 font-medium">${window.state.isOffline ? 'Saved locally on your device.' : 'Successfully synced with classroom cloud.'}</p>
+                        <button onclick="window.setPage('dashboard')" class="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-xl hover:bg-slate-800 shadow-xl">CONTINUE</button>
+                    </div>
+                </main>
+            `;
+        };
+
+        window.renderNameEntry = () => {
+            return `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-[2.5rem] p-10 max-w-sm w-full shadow-2xl space-y-6 page-fade">
+                        <div class="text-center">
+                            <div class="text-4xl mb-4">🎓</div>
+                            <h2 class="text-2xl font-black text-slate-900 tracking-tight">Student Access</h2>
+                            <p class="text-slate-500 text-sm">Enter your name to start the examination session.</p>
+                        </div>
+                        <input id="nameInput" placeholder="Full Name" class="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold outline-none focus:ring-4 focus:ring-blue-100 transition-all text-slate-800">
+                        <button onclick="window.saveStudentName()" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg hover:bg-blue-700">JOIN CLASS</button>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- Logic Handlers ---
+        window.saveStudentName = () => {
+            const input = document.getElementById('nameInput');
+            if (input && input.value.trim()) {
+                window.state.studentName = input.value.trim();
+                localStorage.setItem('studentName', window.state.studentName);
+                window.render();
+            }
+        };
+
+        window.changeName = () => {
+            if (confirm("Sign out? Your local history will remain.")) {
+                window.state.studentName = '';
+                localStorage.removeItem('studentName');
+                window.render();
+            }
+        };
+
+        window.clearHistory = () => {
+            if (confirm("Are you sure you want to clear your local test history and best score? This action cannot be undone.")) {
+                window.state.gameHistory = [];
+                window.state.bestScore = 0;
+                localStorage.removeItem('quizHistory');
+                localStorage.removeItem('quizBestScore');
+                window.render();
+            }
+        };
+
+        window.getIcon = (cat) => {
+            const icons = { "World": "🌍", "Science": "🔬", "Gadgets": "💻", "History": "📜" };
+            return icons[cat] || "⭐";
+        };
+
+        window.getOptionStyle = (index) => {
+            if (window.state.selectedChoice === null) return "border-slate-100 hover:border-blue-500 text-slate-700 bg-white";
+            const q = window.state.currentQuestions[window.state.currentIndex];
+            if (index === q.correct) return "border-green-500 bg-green-50 text-green-700";
+            if (index === window.state.selectedChoice) return "border-red-500 bg-red-50 text-red-700";
+            return "border-slate-50 opacity-40 text-slate-300";
+        };
+
+        window.startGame = (cat) => {
+            const allQ = getQuestions()[cat];
+            const shuffledQuestions = shuffleArray(allQ);
+            
+            window.state = { 
+                ...window.state, 
+                page: 'quiz', 
+                category: cat, 
+                currentQuestions: shuffledQuestions, 
+                currentIndex: 0, 
+                score: 0, 
+                lives: 3, 
+                timeLeft: 15, 
+                selectedChoice: null, 
+                isBusy: false 
+            };
+            window.render();
+            window.startTimer();
+        };
+
+        window.startTimer = () => {
+            clearInterval(window.state.timerId);
+            window.state.timerId = setInterval(() => {
+                window.state.timeLeft--;
+                
+                const timerEl = document.getElementById('timer-display');
+                if (timerEl) {
+                    timerEl.innerText = window.state.timeLeft;
+                }
+
+                if (window.state.timeLeft <= 0) {
+                    window.handleChoice(-1);
+                }
+            }, 1000);
+        };
+
+        window.handleChoice = (idx) => {
+            if (window.state.isBusy) return;
+            clearInterval(window.state.timerId);
+            window.state.isBusy = true;
+            window.state.selectedChoice = idx;
+            const q = window.state.currentQuestions[window.state.currentIndex];
+            
+            if (idx === q.correct) {
+                window.state.score += (10 + Math.max(0, window.state.timeLeft));
+            } else {
+                window.state.lives--;
+            }
+            
+            window.render();
+
+            setTimeout(() => {
+                const totalQ = window.state.currentQuestions.length;
+                if (window.state.lives <= 0 || window.state.currentIndex + 1 >= totalQ) {
+                    window.saveGame();
+                } else {
+                    window.state.currentIndex++;
+                    window.state.timeLeft = 15;
+                    window.state.selectedChoice = null;
+                    window.state.isBusy = false;
+                    window.render(); 
+                    window.startTimer();
+                }
+            }, 1200);
+        };
+
+        window.saveGame = async () => {
+            if (window.state.score > window.state.bestScore) {
+                window.state.bestScore = window.state.score;
+                localStorage.setItem('quizBestScore', window.state.score);
+            }
+            const gameData = {
+                category: window.state.category,
+                score: window.state.score,
+                date: new Date().toLocaleDateString()
+            };
+            window.state.gameHistory.unshift(gameData);
+            localStorage.setItem('quizHistory', JSON.stringify(window.state.gameHistory));
+            
+            window.state.page = 'end';
+            window.render();
+
+            if (window.state.db && !window.state.isOffline) {
+                try {
+                    const resultId = `${window.state.user.uid}_${Date.now()}`;
+                    const resultRef = doc(window.state.db, 'artifacts', window.state.appId, 'public', 'data', 'classResults', resultId);
+                    await setDoc(resultRef, { ...gameData, studentName: window.state.studentName, timestamp: Date.now() });
+                } catch (e) { console.warn("Could not sync result."); }
+            }
+        };
+
+        window.setPage = (p) => {
+            clearInterval(window.state.timerId);
+            window.state.page = p;
+            window.state.category = null;
+            window.state.currentQuestions = [];
+            window.render();
+        };
+
+        initFirebase();
+    </script>
+</body>
+</html>
